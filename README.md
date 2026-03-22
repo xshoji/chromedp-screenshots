@@ -1,6 +1,6 @@
 # chromedp-screenshots
 
-A fast, lock-free web page screenshot tool powered by [chromedp](https://github.com/chromedp/chromedp) (headless Chrome). Only Chrome is required — no Puppeteer, no Playwright, no Node.js, no Python.
+A web page screenshot tool with parallel multi-URL capture and lock-free Chrome profile support, powered by [chromedp](https://github.com/chromedp/chromedp) (headless Chrome). Only Chrome is required — no Puppeteer, no Playwright, no Node.js, no Python.
 
 ### Why chromedp-screenshots?
 
