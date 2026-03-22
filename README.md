@@ -20,22 +20,25 @@ A web page screenshot tool with parallel multi-URL capture and lock-free Chrome 
 
 ## Installation
 
+### Homebrew
+
 ```bash
-go install github.com/xshoji/chromedp-screenshots@latest
+brew install xshoji/tap/cdpss
 ```
 
-Or build from source:
+
+### Build from source
 
 ```bash
 git clone https://github.com/xshoji/chromedp-screenshots.git
 cd chromedp-screenshots
-go build -o chromedp-screenshots .
+go build -ldflags="-s -w" -trimpath -o cdpss main.go
 ```
 
 ## Usage
 
 ```bash
-go run main.go -u <URL> -o /tmp/screenshot.png [options]
+cdpss -u <URL> -o /tmp/screenshot.png [options]
 ```
 
 ### Options
@@ -61,24 +64,24 @@ go run main.go -u <URL> -o /tmp/screenshot.png [options]
 
 ```bash
 # Viewport screenshot
-go run main.go -u="https://www.example.com/" -wi=1280 -he=800 -o=/tmp/example.png
+cdpss -u="https://www.example.com/" -wi=1280 -he=800 -o=/tmp/example.png
 
 # Element screenshot with CSS selector
-go run main.go -u="https://news.yahoo.co.jp/" -q="#liveStream" -o="/tmp/livestream.png"
+cdpss -u="https://news.yahoo.co.jp/" -q="#liveStream" -o="/tmp/livestream.png"
 
 # Full-page screenshot
-go run main.go -u="https://www.example.com/" -f -o=/tmp/fullpage.png
+cdpss -u="https://www.example.com/" -f -o=/tmp/fullpage.png
 
 # Multiple URLs (parallel capture)
-go run main.go -u="https://www.yahoo.co.jp/" -u="https://www.google.com/" -o=/tmp/sites.png
+cdpss -u="https://www.yahoo.co.jp/" -u="https://www.google.com/" -o=/tmp/sites.png
 
 # With Chrome profile (for logged-in sessions)
-go run main.go -u="https://example.com/dashboard" \
+cdpss -u="https://example.com/dashboard" \
   -p="/Users/you/Library/Application Support/Google/Chrome/Default" \
   -r -o=/tmp/dashboard.png
 
 # Custom Chrome flags
-go run main.go -u="https://example.com/" -c "lang=ja" -c "disable-extensions"
+cdpss -u="https://example.com/" -c "lang=ja" -c "disable-extensions"
 ```
 
 ### Details of the -p flag and the Google Chrome profile directory

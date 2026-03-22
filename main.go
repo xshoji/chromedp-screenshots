@@ -9,8 +9,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -381,7 +381,7 @@ func customUsage(description string) func() {
 			return fmt.Sprintf("  %-"+optionFieldWidth+"s %s\n", re.FindStringSubmatch(m)[1]+" "+valueType, re.FindStringSubmatch(m)[4])
 		}), "\n")
 		sort.SliceStable(usages, func(i, j int) bool { return strings.Contains(usages[i], Req) && !strings.Contains(usages[j], Req) })
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s (version: %s) [OPTIONS]\n\n", func() string { e, _ := os.Executable(); return filepath.Base(e) }(), version)
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [OPTIONS]\n  version: %s\n\n", func() string { e, _ := os.Executable(); return filepath.Base(e) }(), version)
 		fmt.Fprintf(flag.CommandLine.Output(), "Description:\n  %s\n\n", description)
 		fmt.Fprintf(flag.CommandLine.Output(), "Options:\n%s", strings.Join(usages, "\n"))
 	}
