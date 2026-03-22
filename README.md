@@ -94,6 +94,16 @@ cdpss -u="https://example.com/" -c "lang=ja" -c "disable-extensions"
 - Without `-r`, the cached copy is deleted after each run for idempotency. With `-r`, it is kept for reuse.
 
 
+### Tips
+
+- **Icon fonts showing as ✕ marks** — Web fonts (e.g., Font Awesome, Material Icons) may not finish loading within the default wait time. Try increasing `-w` (e.g., `-w 10`).
+- **Custom DNS resolution** — Use `-c` with `host-resolver-rules` to override DNS resolution:
+  ```bash
+  cdpss -u="https://example.com/" \
+    -c "host-resolver-rules=MAP example.com 127.0.0.1" \
+    -o=/tmp/screenshot.png
+  ```
+
 ### Environment Variables
 
 | Variable | Description |
