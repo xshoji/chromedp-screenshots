@@ -10,6 +10,7 @@ A web page screenshot tool with parallel multi-URL capture and lock-free Chrome 
 ### Other Features
 
 - **Viewport / Element / Full-page screenshot** – capture the visible area, a specific CSS selector (`-q`), or the entire scrollable page (`-f`)
+- **Browser-style address bar** – add a realistic address bar with favicon and URL to the top of screenshots (`-b`), perfect for documentation and presentations
 - **Custom Chrome flags** – pass arbitrary Chrome flags with `-c`
 - **Idempotent execution** – without `-r`, the cached profile is always freshly copied, ensuring consistent results regardless of previous runs
 
