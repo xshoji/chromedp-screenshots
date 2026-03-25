@@ -443,29 +443,58 @@ func getElementRect(ctx context.Context, selector string) (x, y, w, h float64, e
 // chromedp, then stitches it on top of the page screenshot.
 func addAddressBar(ctx context.Context, pageURL string, pageBuf []byte) ([]byte, error) {
 	// Get favicon as a data URI from current page (still on the target page).
-	// Fetches the favicon and converts it to a data URI so it can be embedded
-	// in the address bar HTML (which is loaded via a data: URL where external
-	// resources cannot be fetched). Also handles favicons already defined as
-	// data URIs (e.g. <link rel="icon" href="data:image/png;base64,...">).
+	// Collects all favicon candidates from the page, tries data: URIs first
+	// (no fetch needed), then attempts each URL-based candidate with fetch,
+	// falling back to /favicon.ico as a last resort.
+	//
+	// Covered patterns:
+	//   <link rel="icon" href="...">              — standard
+	//   <link rel="shortcut icon" href="...">     — legacy
+	//   <link rel="apple-touch-icon" href="...">  — iOS
+	//   <link rel="icon" href="data:image/...">   — embedded data URI
+	//   /favicon.ico                              — convention fallback
 	var faviconDataURL string
-	if err := chromedp.Run(ctx, chromedp.EvaluateAsDevTools(
-		`(async function(){`+
-			`var el=document.querySelector('link[rel*="icon"]');`+
-			`var url=el?el.href:(location.origin+'/favicon.ico');`+
-			`if(url.startsWith('data:'))return url;`+
-			`try{`+
-			`var r=await fetch(url);`+
-			`if(!r.ok)return '';`+
-			`var b=await r.blob();`+
-			`if(b.size===0)return '';`+
-			`return await new Promise(function(ok){`+
-			`var rd=new FileReader();`+
-			`rd.onload=function(){ok(rd.result)};`+
-			`rd.onerror=rd.onabort=function(){ok('')};`+
-			`rd.readAsDataURL(b)`+
-			`})`+
-			`}catch(e){return ''}`+
-			`})()`,
+	if err := chromedp.Run(ctx, chromedp.EvaluateAsDevTools(`
+(async function() {
+  // Collect all favicon candidates from <link> tags, then /favicon.ico
+  var cs = [];
+  document.querySelectorAll('link[rel*="icon"]').forEach(function(el) {
+    if (el.href) cs.push(el.href);
+  });
+  cs.push(location.origin + '/favicon.ico');
+
+  // Deduplicate while preserving order
+  var seen = {};
+  cs = cs.filter(function(u) {
+    if (seen[u]) return false;
+    seen[u] = true;
+    return true;
+  });
+
+  // Try data: URIs first (instant, no fetch needed)
+  for (var i = 0; i < cs.length; i++) {
+    if (cs[i].startsWith('data:')) return cs[i];
+  }
+
+  // Try each URL-based candidate until one succeeds
+  for (var i = 0; i < cs.length; i++) {
+    if (cs[i].startsWith('data:')) continue;
+    try {
+      var r = await fetch(cs[i]);
+      if (!r.ok) continue;
+      var b = await r.blob();
+      if (b.size === 0) continue;
+      var result = await new Promise(function(ok) {
+        var rd = new FileReader();
+        rd.onload = function() { ok(rd.result); };
+        rd.onerror = rd.onabort = function() { ok(''); };
+        rd.readAsDataURL(b);
+      });
+      if (result) return result;
+    } catch (e) { continue; }
+  }
+  return '';
+})()`,
 		&faviconDataURL,
 		func(p *cdpruntime.EvaluateParams) *cdpruntime.EvaluateParams {
 			return p.WithAwaitPromise(true)
