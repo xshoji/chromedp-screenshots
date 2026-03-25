@@ -473,7 +473,34 @@ func addAddressBar(ctx context.Context, pageURL string, pageBuf []byte) ([]byte,
 
   // Try data: URIs first (instant, no fetch needed)
   for (var i = 0; i < cs.length; i++) {
+    if (cs[i].startsWith('data:') && cs[i].indexOf('image/svg') !== -1) {
+      // Decode inline SVG data URI and strip dark mode
+      try {
+        var svgContent;
+        if (cs[i].indexOf(';base64,') !== -1) {
+          svgContent = atob(cs[i].split(';base64,')[1]);
+        } else {
+          svgContent = decodeURIComponent(cs[i].split(',').slice(1).join(','));
+        }
+        svgContent = stripDarkMode(svgContent);
+        return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgContent)));
+      } catch(e) { return cs[i]; }
+    }
     if (cs[i].startsWith('data:')) return cs[i];
+  }
+
+  // stripDarkMode removes @media (prefers-color-scheme: dark) blocks from SVG
+  // to prevent favicons from rendering as white-on-white in the address bar.
+  function stripDarkMode(svgText) {
+    return svgText.replace(/@media\s*\(\s*prefers-color-scheme:\s*dark\s*\)\s*\{[^}]*\{[^}]*\}\s*\}/g, '');
+  }
+  function toDataURL(blob) {
+    return new Promise(function(ok) {
+      var rd = new FileReader();
+      rd.onload = function() { ok(rd.result); };
+      rd.onerror = rd.onabort = function() { ok(''); };
+      rd.readAsDataURL(blob);
+    });
   }
 
   // Try each URL-based candidate until one succeeds
@@ -484,12 +511,14 @@ func addAddressBar(ctx context.Context, pageURL string, pageBuf []byte) ([]byte,
       if (!r.ok) continue;
       var b = await r.blob();
       if (b.size === 0) continue;
-      var result = await new Promise(function(ok) {
-        var rd = new FileReader();
-        rd.onload = function() { ok(rd.result); };
-        rd.onerror = rd.onabort = function() { ok(''); };
-        rd.readAsDataURL(b);
-      });
+      // For SVG favicons, strip dark mode media queries to avoid white-on-white
+      if (b.type === 'image/svg+xml' || cs[i].endsWith('.svg')) {
+        var svgText = await b.text();
+        svgText = stripDarkMode(svgText);
+        var result = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)));
+        if (result) return result;
+      }
+      var result = await toDataURL(b);
       if (result) return result;
     } catch (e) { continue; }
   }
