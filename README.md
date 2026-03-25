@@ -26,7 +26,7 @@ A web page screenshot tool with parallel multi-URL capture and lock-free Chrome 
 ### Homebrew
 
 ```bash
-brew install xshoji/tap/cds
+brew install xshoji/tap/cps
 ```
 
 
@@ -35,13 +35,13 @@ brew install xshoji/tap/cds
 ```bash
 git clone https://github.com/xshoji/chromedp-screenshots.git
 cd chromedp-screenshots
-go build -ldflags="-s -w" -trimpath -o cds main.go
+go build -ldflags="-s -w" -trimpath -o cps main.go
 ```
 
 ## Usage
 
 ```bash
-cds -u <URL> -o /tmp/screenshot.png [options]
+cps -u <URL> -o /tmp/screenshot.png [options]
 ```
 
 ### Options
@@ -68,27 +68,27 @@ cds -u <URL> -o /tmp/screenshot.png [options]
 
 ```bash
 # Viewport screenshot
-cds -u="https://www.example.com/" -wi=1280 -he=800 -o=/tmp/example.png
+cps -u="https://www.example.com/" -wi=1280 -he=800 -o=/tmp/example.png
 
 # Element screenshot with CSS selector
-cds -u="https://news.yahoo.co.jp/" -q="#liveStream" -o="/tmp/livestream.png"
+cps -u="https://news.yahoo.co.jp/" -q="#liveStream" -o="/tmp/livestream.png"
 
 # Full-page screenshot
-cds -u="https://www.example.com/" -f -o=/tmp/fullpage.png
+cps -u="https://www.example.com/" -f -o=/tmp/fullpage.png
 
 # Multiple URLs (parallel capture)
-cds -u="https://www.yahoo.co.jp/" -u="https://www.google.com/" -o=/tmp/sites.png
+cps -u="https://www.yahoo.co.jp/" -u="https://www.google.com/" -o=/tmp/sites.png
 
 # With Chrome profile (for logged-in sessions)
-cds -u="https://example.com/dashboard" \
+cps -u="https://example.com/dashboard" \
   -p="/Users/you/Library/Application Support/Google/Chrome/Default" \
   -r -o=/tmp/dashboard.png
 
 # With browser-style address bar
-cds -u="https://www.example.com/" -b -o=/tmp/with_bar.png
+cps -u="https://www.example.com/" -b -o=/tmp/with_bar.png
 
 # Custom Chrome flags
-cds -u="https://example.com/" -c "lang=ja" -c "disable-extensions"
+cps -u="https://example.com/" -c "lang=ja" -c "disable-extensions"
 ```
 
 ### Details of the -p flag and the Google Chrome profile directory
@@ -110,7 +110,7 @@ cds -u="https://example.com/" -c "lang=ja" -c "disable-extensions"
 - **Icon fonts showing as ✕ marks** — Web fonts (e.g., Font Awesome, Material Icons) may not finish loading within the default wait time. Try increasing `-w` (e.g., `-w 10`).
 - **Custom DNS resolution** — Use `-c` with `host-resolver-rules` to override DNS resolution:
   ```bash
-  cds -u="https://example.com/" \
+  cps -u="https://example.com/" \
     -c "host-resolver-rules=MAP example.com 127.0.0.1" \
     -o=/tmp/screenshot.png
   ```
@@ -126,7 +126,7 @@ cds -u="https://example.com/" -c "lang=ja" -c "disable-extensions"
 ### Build
 
 ```bash
-go build -ldflags="-s -w" -trimpath -o cds main.go
+go build -ldflags="-s -w" -trimpath -o cps main.go
 ```
 
 ### Test

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-chromedp-screenshots (`cds`) is a CLI tool that takes web page screenshots using headless Chrome via [chromedp](https://github.com/chromedp/chromedp). The entire tool is a single `main.go` with no external dependencies beyond chromedp. Only Chrome is required — no Node.js, no Puppeteer, no Playwright.
+chromedp-screenshots (`cps`) is a CLI tool that takes web page screenshots using headless Chrome via [chromedp](https://github.com/chromedp/chromedp). The entire tool is a single `main.go` with no external dependencies beyond chromedp. Only Chrome is required — no Node.js, no Puppeteer, no Playwright.
 
 ### Key Selling Points
 
@@ -79,7 +79,7 @@ CHROMEDP_SCREENSHOTS_E2E=1 go test -v
 ## Build
 
 ```bash
-go build -ldflags="-s -w" -trimpath -o cds main.go
+go build -ldflags="-s -w" -trimpath -o cps main.go
 ```
 
 ## Conventions
