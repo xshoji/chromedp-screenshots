@@ -73,18 +73,18 @@ var (
 		reUseProfile   *bool
 		parallel       *int
 	}{
-		defineFlagValue("o", "output" /*       */, Req+"Output path of screenshot (with multiple URLs, auto-numbered: <base>_001.png, _002.png, ...)", "", flag.String, flag.StringVar),
-		defineFlagValue("q", "query" /*        */, "Query selector. Screenshot the first matching element. ( e.g. -q=\".className#id\" )", "", flag.String, flag.StringVar),
-		defineFlagValue("p", "profile" /*      */, "Chrome profile directory to copy. (e.g. -p=\"~/Library/Application Support/Google/Chrome/Default\").", "", flag.String, flag.StringVar),
-		defineFlagValue("w", "wait" /*         */, "Wait seconds after page navigation before taking screenshot", 3, flag.Int, flag.IntVar),
-		defineFlagValue("W", "width" /*        */, "Viewport width (affects page layout, e.g. responsive design). Without -q, this is the output image width", int64(1280), flag.Int64, flag.Int64Var),
-		defineFlagValue("H", "height" /*       */, "Viewport height (affects page layout, e.g. responsive design). Without -q, this is the output image height", int64(860), flag.Int64, flag.Int64Var),
-		defineFlagValue("f", "full" /*         */, "Enable full screenshot mode", false, flag.Bool, flag.BoolVar),
-		defineFlagValue("b", "address-bar" /*  */, "Add browser-style address bar to the top of screenshot", false, flag.Bool, flag.BoolVar),
-		defineFlagValue("d", "debug" /*        */, "Enable debug mode", false, flag.Bool, flag.BoolVar),
-		defineFlagValue("n", "no-headless" /*  */, "Disable headless mode", false, flag.Bool, flag.BoolVar),
-		defineFlagValue("r", "reuse" /*        */, "Reuse cached profile (do not delete after execution)", false, flag.Bool, flag.BoolVar),
-		defineFlagValue("t", "parallel" /*     */, "Max number of parallel tabs for screenshot capture", runtime.NumCPU(), flag.Int, flag.IntVar),
+		defineFlagValue("o", "output" /*       */, "" /*               */, Req+"Output path of screenshot (with multiple URLs, auto-numbered: <base>_001.png, _002.png, ...)", flag.String, flag.StringVar),
+		defineFlagValue("q", "query" /*        */, "" /*               */, "Query selector. Screenshot the first matching element. ( e.g. -q=\".className#id\" )", flag.String, flag.StringVar),
+		defineFlagValue("p", "profile" /*      */, "" /*               */, "Chrome profile directory to copy. (e.g. -p=\"~/Library/Application Support/Google/Chrome/Default\").", flag.String, flag.StringVar),
+		defineFlagValue("w", "wait" /*         */, 3 /*                */, "Wait seconds after page navigation before taking screenshot", flag.Int, flag.IntVar),
+		defineFlagValue("W", "width" /*        */, int64(1280) /*      */, "Viewport width (affects page layout, e.g. responsive design). Without -q, this is the output image width", flag.Int64, flag.Int64Var),
+		defineFlagValue("H", "height" /*       */, int64(860) /*       */, "Viewport height (affects page layout, e.g. responsive design). Without -q, this is the output image height", flag.Int64, flag.Int64Var),
+		defineFlagValue("f", "full" /*         */, false /*            */, "Enable full screenshot mode", flag.Bool, flag.BoolVar),
+		defineFlagValue("b", "address-bar" /*  */, false /*            */, "Add browser-style address bar to the top of screenshot", flag.Bool, flag.BoolVar),
+		defineFlagValue("d", "debug" /*        */, false /*            */, "Enable debug mode", flag.Bool, flag.BoolVar),
+		defineFlagValue("n", "no-headless" /*  */, false /*            */, "Disable headless mode", flag.Bool, flag.BoolVar),
+		defineFlagValue("r", "reuse" /*        */, false /*            */, "Reuse cached profile (do not delete after execution)", flag.Bool, flag.BoolVar),
+		defineFlagValue("t", "parallel" /*     */, runtime.NumCPU() /* */, "Max number of parallel tabs for screenshot capture", flag.Int, flag.IntVar),
 	}
 )
 
@@ -762,7 +762,7 @@ func defineFlagSlice(short, long, description string, s *stringSlice) {
 }
 
 // Helper function for flag
-func defineFlagValue[T comparable](short, long, description string, defaultValue T, flagFunc func(name string, value T, usage string) *T, flagVarFunc func(p *T, name string, value T, usage string)) *T {
+func defineFlagValue[T comparable](short, long string, defaultValue T, description string, flagFunc func(name string, value T, usage string) *T, flagVarFunc func(p *T, name string, value T, usage string)) *T {
 	flagUsage := short + UsageDummy + description
 	var zero T
 	if defaultValue != zero {

@@ -48,28 +48,28 @@ sitesnap -u <URL> -o /tmp/screenshot.png [options]
 
 ### Options
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-u` | *(required)* | URL to capture (can be specified multiple times) |
-| `-o` | *(required)* | Output file path (auto-numbered with multiple URLs: `_001.png`, `_002.png`, …) |
-| `-q` | `""` | CSS selector – screenshot the first matching element |
-| `-p` | `""` | Chrome profile directory to copy and cache |
-| `-w` | `3` | Wait seconds after navigation before capturing |
-| `-wi` | `1280` | Viewport width |
-| `-he` | `860` | Viewport height |
-| `-f` | `false` | Enable full-page screenshot |
-| `-b` | `false` | Add browser-style address bar (favicon + URL) to the top of screenshot |
-| `-d` | `false` | Enable debug mode |
-| `-n` | `false` | Disable headless mode (show browser window) |
-| `-r` | `false` | Reuse cached profile (do not delete after execution) |
-| `-t` | `NumCPU` | Max number of parallel tabs for screenshot capture |
-| `-c` | `""` | Extra Chrome flag as `key=value` (can be specified multiple times) |
+| Short | Long | Default | Description |
+|-------|------|---------|-------------|
+| `-u` | `--url` | *(required)* | URL to capture (can be specified multiple times) |
+| `-o` | `--output` | *(required)* | Output file path (auto-numbered with multiple URLs: `_001.png`, `_002.png`, …) |
+| `-q` | `--query` | `""` | CSS selector – screenshot the first matching element |
+| `-p` | `--profile` | `""` | Chrome profile directory to copy and cache |
+| `-w` | `--wait` | `3` | Wait seconds after navigation before capturing |
+| `-W` | `--width` | `1280` | Viewport width |
+| `-H` | `--height` | `860` | Viewport height |
+| `-f` | `--full` | `false` | Enable full-page screenshot |
+| `-b` | `--address-bar` | `false` | Add browser-style address bar (favicon + URL) to the top of screenshot |
+| `-d` | `--debug` | `false` | Enable debug mode |
+| `-n` | `--no-headless` | `false` | Disable headless mode (show browser window) |
+| `-r` | `--reuse` | `false` | Reuse cached profile (do not delete after execution) |
+| `-t` | `--parallel` | `NumCPU` | Max number of parallel tabs for screenshot capture |
+| `-c` | `--chrome-flag` | `""` | Extra Chrome flag as `key=value` (can be specified multiple times) |
 
 ### Examples
 
 ```bash
 # Viewport screenshot
-sitesnap -u="https://www.example.com/" -wi=1280 -he=800 -o=/tmp/example.png
+sitesnap -u="https://www.example.com/" -W=1280 -H=800 -o=/tmp/example.png
 
 # Element screenshot with CSS selector
 sitesnap -u="https://news.yahoo.co.jp/" -q="#liveStream" -o="/tmp/livestream.png"
@@ -89,7 +89,7 @@ sitesnap -u="https://example.com/dashboard" \
 sitesnap -u="https://www.example.com/" -b -o=/tmp/with_bar.png
 
 # Custom Chrome flags
-sitesnap -u="https://example.com/" -c "lang=ja" -c "disable-extensions"
+sitesnap -u="https://example.com/" -c="lang=ja" -c="disable-extensions" -o=/tmp/example.png
 ```
 
 ### Details of the -p flag and the Google Chrome profile directory

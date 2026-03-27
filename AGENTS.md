@@ -6,8 +6,8 @@ sitesnap is a CLI tool that takes web page screenshots using headless Chrome via
 
 ### Key Selling Points
 
-- **Parallel multi-URL capture** — Multiple URLs are captured simultaneously in separate browser tabs within a single Chrome process, controlled by `-t` (defaults to `NumCPU`).
-- **Lock-free Chrome profile usage** — The `-p` flag copies the user's Chrome profile to an isolated cache directory, allowing screenshots of logged-in sessions even while the main browser is running.
+- **Parallel multi-URL capture** — Multiple URLs are captured simultaneously in separate browser tabs within a single Chrome process, controlled by `-t`/`--parallel` (defaults to `NumCPU`).
+- **Lock-free Chrome profile usage** — The `-p`/`--profile` flag copies the user's Chrome profile to an isolated cache directory, allowing screenshots of logged-in sessions even while the main browser is running.
 - **Single binary, zero runtime deps** — Just Go + Chrome. No npm, no pip, no webdriver.
 
 ## Architecture
@@ -16,8 +16,8 @@ All logic lives in `main.go`. No packages, no subdirectories.
 
 ### Main Flow (`main()`)
 
-1. Parse flags
-2. Copy Chrome profile to cache dir (if `-p` specified)
+1. Parse flags (each flag supports both short `-x` and long `--name` forms)
+2. Copy Chrome profile to cache dir (if `-p`/`--profile` specified)
 3. Launch a single Chrome process (`NewExecAllocator` → `NewContext`)
 4. Spawn goroutines per URL, each creating a new tab (`NewContext(browserCtx)`)
 5. Each tab: set viewport → navigate → wait → capture
@@ -29,8 +29,8 @@ All logic lives in `main.go`. No packages, no subdirectories.
 | Mode | Flag | Capture Method |
 |------|------|----------------|
 | **Viewport** | *(default)* | `page.CaptureScreenshot()` — captures the visible viewport |
-| **Full-page** | `-f` | Viewport-resize approach (see below) |
-| **Element** | `-q` | Viewport-resize + clip approach (see below) |
+| **Full-page** | `-f`/`--full` | Viewport-resize approach (see below) |
+| **Element** | `-q`/`--query` | Viewport-resize + clip approach (see below) |
 
 ## Critical Design Decision: Why We Do NOT Use `chromedp.FullScreenshot`
 
@@ -57,11 +57,11 @@ Instead of `captureBeyondViewport`, we:
 
 This is safe for parallel execution because `SetDeviceMetricsOverride` is scoped to each tab's CDP session.
 
-The same approach is applied to `-q` (element screenshots): we expand the viewport to contain the target element, then capture with a `clip` rect.
+The same approach is applied to `-q`/`--query` (element screenshots): we expand the viewport to contain the target element, then capture with a `clip` rect.
 
 ## Constants
 
-- `maxPhysicalDim = 16384` — Chrome's GPU texture limit in **physical pixels**. The effective CSS pixel limit is `floor(16384 / deviceScaleFactor)` (e.g., 8192 CSS px at scale 2.0). Both `-f` and `-q` modes clamp to this derived value.
+- `maxPhysicalDim = 16384` — Chrome's GPU texture limit in **physical pixels**. The effective CSS pixel limit is `floor(16384 / deviceScaleFactor)` (e.g., 8192 CSS px at scale 2.0). Both `-f`/`--full` and `-q`/`--query` modes clamp to this derived value.
 
 ## Testing
 
@@ -86,6 +86,6 @@ go build -ldflags="-s -w" -trimpath -o sitesnap main.go
 
 - Single-file project: all code in `main.go`, tests in `main_test.go`
 - Package-level `var arguments` struct holds all flag pointers
-- `stringSlice` type enables repeated flags (`-u`, `-c`)
+- `stringSlice` type enables repeated flags (`-u`/`--url`, `-c`/`--chrome-flag`)
 - Profile cache lives under `~/.sitesnap/` (overridable via `SITESNAP_CACHE_DIR`)
 - Output numbering for multiple URLs: `<base>_001.png`, `_002.png`, ...
