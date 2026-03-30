@@ -1,7 +1,7 @@
 version: 2
 builds:
   - main: main.go
-    binary: sitesnap
+    binary: sesnap
     goos:
       - windows
       - darwin
@@ -36,16 +36,16 @@ snapshot:
   name_template: "{{ .Tag }}-next-{{.ShortCommit}}"
   version_template: "{{ .Tag }}-next"
 brews:
-  - name: sitesnap
+  - name: sesnap
     repository:
       owner: xshoji
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
-    homepage: https://github.com/xshoji/sitesnap
+    homepage: https://github.com/xshoji/sesnap
     description: A web page screenshot tool with parallel multi-URL capture and lock-free Chrome profile support, powered by chromedp (headless Chrome). Only Chrome is required — no Puppeteer, no Playwright, no Node.js, no Python.
     install: |
-      bin.install "sitesnap"
+      bin.install "sesnap"
 changelog:
   sort: asc
   filters:

@@ -55,7 +55,7 @@ const (
 )
 
 var (
-	commandDescription = "A fast, multi-page screenshot tool that requires only Chrome. Supports profile specification without locking your main browser.\n  Set SITESNAP_CACHE_DIR to override the default profile cache directory (~/.sitesnap).\n  Device scale factor can be changed via -c \"device-scale-factor=1.0\" (default: 2.0 Retina).\n  Custom DNS resolution via -c \"host-resolver-rules=MAP example.com 127.0.0.1\"."
+	commandDescription = "A fast, multi-page screenshot tool that requires only Chrome. Supports profile specification without locking your main browser.\n  Set SESNAP_CACHE_DIR to override the default profile cache directory (~/.sesnap).\n  Device scale factor can be changed via -c \"device-scale-factor=1.0\" (default: 2.0 Retina).\n  Custom DNS resolution via -c \"host-resolver-rules=MAP example.com 127.0.0.1\"."
 	urls               stringSlice
 	chromeFlags        stringSlice
 	deviceScaleFactor  = 2.0
@@ -267,7 +267,7 @@ func setupProfileCache() string {
 	}
 
 	// Non-reuse mode: use a temporary directory
-	userDataDir, err := os.MkdirTemp("", "sitesnap-userdata-")
+	userDataDir, err := os.MkdirTemp("", "sesnap-userdata-")
 	if err != nil {
 		log.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -716,16 +716,16 @@ func cleanupProfileCache(cacheDir string) {
 }
 
 // chromeProfileCacheRoot returns the root directory for cached Chrome profiles.
-// Can be overridden by the SITESNAP_CACHE_DIR environment variable.
+// Can be overridden by the SESNAP_CACHE_DIR environment variable.
 func chromeProfileCacheRoot() string {
-	if dir := os.Getenv("SITESNAP_CACHE_DIR"); dir != "" {
+	if dir := os.Getenv("SESNAP_CACHE_DIR"); dir != "" {
 		return dir
 	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatalf("failed to get user home directory: %v", err)
 	}
-	return filepath.Join(homeDir, ".sitesnap")
+	return filepath.Join(homeDir, ".sesnap")
 }
 
 func logSettings(profileCacheDir string) {
