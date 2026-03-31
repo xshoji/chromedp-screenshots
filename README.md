@@ -67,6 +67,7 @@ sesnap -u <URL> -o /tmp/screenshot.png [options]
 | `-n` | `--no-headless` | `false` | Disable headless mode (show browser window) |
 | `-r` | `--reuse` | `false` | Reuse cached profile (do not delete after execution) |
 | `-t` | `--parallel` | `NumCPU` | Max number of parallel tabs for screenshot capture |
+| `-m` | `--mcp` | `false` | Run as MCP (Model Context Protocol) server over stdio |
 | `-c` | `--chrome-flag` | `""` | Extra Chrome flag as `key=value` (can be specified multiple times) |
 
 ### Examples
@@ -109,6 +110,39 @@ sesnap -u="https://example.com/" -s="*" -o=/tmp/all_selects.png
 
 # Click to open menu, then hover a sub-item
 sesnap -u="https://example.com/" -k=".menu-button" -e=".submenu-item" -o=/tmp/submenu.png
+```
+
+### MCP Server Mode
+
+sesnap can run as an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server, allowing AI agents to take screenshots directly without spawning a new process for each capture. Chrome stays running across requests, dramatically reducing latency.
+
+```bash
+# Start as MCP server
+sesnap --mcp
+
+# With Chrome profile for logged-in sessions
+sesnap --mcp -p="/Users/you/Library/Application Support/Google/Chrome/Default" -r
+```
+
+The server exposes three tools via stdio:
+
+| Tool | Description |
+|------|-------------|
+| `screenshot` | Capture URLs and return images directly as base64 (supports `format: "jpeg"` for token savings) |
+| `screenshot_to_file` | Capture URLs and save to files, returning file paths (no image tokens consumed) |
+| `list_profiles` | List available Chrome profile directories |
+
+**AI client configuration example** (e.g. `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "sesnap": {
+      "command": "sesnap",
+      "args": ["--mcp", "-t", "4"]
+    }
+  }
+}
 ```
 
 ### Details of the -p flag and the Google Chrome profile directory

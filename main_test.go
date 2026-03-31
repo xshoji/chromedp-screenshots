@@ -242,7 +242,7 @@ func TestE2E_ViewportScreenshot(t *testing.T) {
 	tabCtx, tabCancel := chromedp.NewContext(browserCtx)
 	defer tabCancel()
 
-	buf, err := takeScreenshot(tabCtx, "https://www.example.com")
+	buf, err := takeScreenshot(tabCtx, "https://www.example.com", captureParamsFromArgs())
 	if err != nil {
 		t.Fatalf("takeScreenshot failed: %v", err)
 	}
@@ -289,7 +289,7 @@ func TestE2E_FullPageScreenshot(t *testing.T) {
 	tabCtx, tabCancel := chromedp.NewContext(browserCtx)
 	defer tabCancel()
 
-	buf, err := takeScreenshot(tabCtx, "https://www.example.com")
+	buf, err := takeScreenshot(tabCtx, "https://www.example.com", captureParamsFromArgs())
 	if err != nil {
 		t.Fatalf("takeScreenshot failed: %v", err)
 	}

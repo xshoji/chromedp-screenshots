@@ -9,6 +9,7 @@ import (
 	"html"
 	"image"
 	"image/draw"
+	"image/jpeg"
 	"image/png"
 	"log"
 	"math"
@@ -30,6 +31,8 @@ import (
 	cdpruntime "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 // stringSlice implements flag.Value to accept multiple -u flags.
@@ -76,6 +79,7 @@ var (
 		noHeadless     *bool
 		reUseProfile   *bool
 		parallel       *int
+		mcpMode        *bool
 	}{
 		defineFlagValue("o", "output" /*       */, "" /*               */, Req+"Output path of screenshot (with multiple URLs, auto-numbered: <base>_001.png, _002.png, ...)", flag.String, flag.StringVar),
 		defineFlagValue("q", "query" /*        */, "" /*               */, "Query selector. Screenshot the first matching element. ( e.g. -q=\".className#id\" )", flag.String, flag.StringVar),
@@ -92,8 +96,38 @@ var (
 		defineFlagValue("n", "no-headless" /*  */, false /*            */, "Disable headless mode", flag.Bool, flag.BoolVar),
 		defineFlagValue("r", "reuse" /*        */, false /*            */, "Reuse cached profile (do not delete after execution)", flag.Bool, flag.BoolVar),
 		defineFlagValue("t", "parallel" /*     */, runtime.NumCPU() /* */, "Max number of parallel tabs for screenshot capture", flag.Int, flag.IntVar),
+		defineFlagValue("m", "mcp" /*          */, false /*            */, "Run as MCP (Model Context Protocol) server over stdio", flag.Bool, flag.BoolVar),
 	}
 )
+
+// captureParams holds per-request screenshot parameters, decoupled from global flags.
+type captureParams struct {
+	windowWidth    int64
+	windowHeight   int64
+	waitSeconds    int
+	querySelector  string
+	clickSelector  string
+	hoverSelector  string
+	expandSelect   string
+	fullScreenshot bool
+	showAddressBar bool
+	scaleFactor    float64
+}
+
+func captureParamsFromArgs() captureParams {
+	return captureParams{
+		windowWidth:    *arguments.windowWidth,
+		windowHeight:   *arguments.windowHeight,
+		waitSeconds:    *arguments.waitSeconds,
+		querySelector:  *arguments.querySelector,
+		clickSelector:  *arguments.clickSelector,
+		hoverSelector:  *arguments.hoverSelector,
+		expandSelect:   *arguments.expandSelect,
+		fullScreenshot: *arguments.fullScreenshot,
+		showAddressBar: *arguments.showAddressBar,
+		scaleFactor:    deviceScaleFactor,
+	}
+}
 
 func init() {
 	defineFlagSlice("u", "url", Req+"URL (can be specified multiple times, e.g. -u \"https://xxxx/\" -u \"https://yyyy/\")", &urls)
@@ -103,6 +137,10 @@ func init() {
 
 func main() {
 	flag.Parse()
+	if *arguments.mcpMode {
+		runMCPServer()
+		return
+	}
 	if len(urls) == 0 || *arguments.outputPath == "" {
 		log.Println("Error: -u:URLs and -o:output-path are required.")
 		flag.Usage()
@@ -164,10 +202,11 @@ func main() {
 	logSettings(profileCacheDir)
 
 	// --- 5. Take screenshots ---
+	params := captureParamsFromArgs()
 	if len(urls) == 1 {
 		// Single URL: use the browser's initial tab directly
 		log.Printf("[1/1] capturing: %s", urls[0])
-		buf, err := takeScreenshot(browserCtx, urls[0])
+		buf, err := takeScreenshot(browserCtx, urls[0], params)
 		if err != nil {
 			log.Fatalf("capture %s: %v", urls[0], err)
 		}
@@ -198,7 +237,7 @@ func main() {
 				defer tabCancel()
 
 				log.Printf("[%d/%d] capturing: %s", i+1, len(urls), u)
-				buf, err := takeScreenshot(tabCtx, u)
+				buf, err := takeScreenshot(tabCtx, u, params)
 				if err != nil {
 					results <- result{i, fmt.Errorf("capture %s: %w", u, err)}
 					return
@@ -361,13 +400,13 @@ func newBrowserContext(userDataDir string) (context.Context, func()) {
 // takeScreenshot navigates to the URL and captures a screenshot.
 // All chromedp actions run in a single Run call to avoid race conditions
 // when multiple tabs operate concurrently.
-func takeScreenshot(ctx context.Context, url string) ([]byte, error) {
+func takeScreenshot(ctx context.Context, url string, p captureParams) ([]byte, error) {
 	// Build and execute all tasks in one Run call
 	tasks := chromedp.Tasks{
 		emulation.SetDeviceMetricsOverride(
-			*arguments.windowWidth,
-			*arguments.windowHeight,
-			deviceScaleFactor,
+			p.windowWidth,
+			p.windowHeight,
+			p.scaleFactor,
 			false,
 		),
 		// Use page.Navigate directly to avoid hanging on pages
@@ -392,12 +431,12 @@ func takeScreenshot(ctx context.Context, url string) ([]byte, error) {
 			}
 			return nil
 		}),
-		chromedp.Sleep(time.Duration(*arguments.waitSeconds) * time.Second),
+		chromedp.Sleep(time.Duration(p.waitSeconds) * time.Second),
 	}
 
 	// Click action before capture (e.g. open dropdown menu)
-	if *arguments.clickSelector != "" {
-		sel := *arguments.clickSelector
+	if p.clickSelector != "" {
+		sel := p.clickSelector
 		tasks = append(tasks,
 			chromedp.WaitVisible(sel, chromedp.ByQuery),
 			chromedp.Click(sel, chromedp.ByQuery),
@@ -405,8 +444,8 @@ func takeScreenshot(ctx context.Context, url string) ([]byte, error) {
 		)
 	}
 	// Hover action before capture (e.g. trigger tooltip or :hover style)
-	if *arguments.hoverSelector != "" {
-		sel := *arguments.hoverSelector
+	if p.hoverSelector != "" {
+		sel := p.hoverSelector
 		tasks = append(tasks,
 			chromedp.WaitVisible(sel, chromedp.ByQuery),
 			chromedp.ActionFunc(func(ctx context.Context) error {
@@ -423,8 +462,8 @@ func takeScreenshot(ctx context.Context, url string) ([]byte, error) {
 		)
 	}
 	// Expand <select> elements as HTML dropdown overlays
-	if *arguments.expandSelect != "" {
-		sel := *arguments.expandSelect
+	if p.expandSelect != "" {
+		sel := p.expandSelect
 		tasks = append(tasks,
 			chromedp.ActionFunc(func(ctx context.Context) error {
 				return expandSelectElements(ctx, sel)
@@ -435,21 +474,21 @@ func takeScreenshot(ctx context.Context, url string) ([]byte, error) {
 
 	var buf []byte
 	switch {
-	case *arguments.fullScreenshot:
+	case p.fullScreenshot:
 		tasks = append(tasks, chromedp.ActionFunc(func(ctx context.Context) error {
-			data, err := captureFullPage(ctx)
+			data, err := captureFullPage(ctx, p)
 			if err != nil {
 				return err
 			}
 			buf = data
 			return nil
 		}))
-	case *arguments.querySelector != "":
-		qs := *arguments.querySelector
+	case p.querySelector != "":
+		qs := p.querySelector
 		tasks = append(tasks,
 			chromedp.WaitVisible(qs, chromedp.ByQuery),
 			chromedp.ActionFunc(func(ctx context.Context) error {
-				data, err := captureElement(ctx, qs)
+				data, err := captureElement(ctx, qs, p)
 				if err != nil {
 					return err
 				}
@@ -471,8 +510,8 @@ func takeScreenshot(ctx context.Context, url string) ([]byte, error) {
 	if err := chromedp.Run(ctx, tasks); err != nil {
 		return nil, err
 	}
-	if *arguments.showAddressBar {
-		combined, err := addAddressBar(ctx, url, buf)
+	if p.showAddressBar {
+		combined, err := addAddressBar(ctx, url, buf, p.scaleFactor)
 		if err != nil {
 			return nil, err
 		}
@@ -484,7 +523,7 @@ func takeScreenshot(ctx context.Context, url string) ([]byte, error) {
 // captureFullPage resizes the viewport to the full page dimensions and takes
 // a normal viewport screenshot. This avoids captureBeyondViewport which is
 // unreliable when multiple tabs capture concurrently.
-func captureFullPage(ctx context.Context) ([]byte, error) {
+func captureFullPage(ctx context.Context, p captureParams) ([]byte, error) {
 	var dims []int64
 	if err := chromedp.Evaluate(
 		`[document.documentElement.scrollWidth, Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)]`,
@@ -492,10 +531,10 @@ func captureFullPage(ctx context.Context) ([]byte, error) {
 	).Do(ctx); err != nil {
 		return nil, err
 	}
-	w := max(*arguments.windowWidth, dims[0])
+	w := max(p.windowWidth, dims[0])
 	h := dims[1]
 	if err := emulation.SetDeviceMetricsOverride(
-		clampDim(w), clampDim(h), deviceScaleFactor, false,
+		clampDim(w, p.scaleFactor), clampDim(h, p.scaleFactor), p.scaleFactor, false,
 	).Do(ctx); err != nil {
 		return nil, err
 	}
@@ -506,16 +545,16 @@ func captureFullPage(ctx context.Context) ([]byte, error) {
 // captures it with a clip rect. This avoids captureBeyondViewport which is
 // unreliable when multiple tabs capture concurrently.
 // Caller must ensure the selector is already present/visible (e.g. via WaitVisible).
-func captureElement(ctx context.Context, selector string) ([]byte, error) {
+func captureElement(ctx context.Context, selector string, p captureParams) ([]byte, error) {
 	x, y, w, h, err := getElementRect(ctx, selector)
 	if err != nil {
 		return nil, err
 	}
 	// Expand viewport so the element is fully visible
-	needW := max(*arguments.windowWidth, int64(math.Ceil(x+w)))
-	needH := max(*arguments.windowHeight, int64(math.Ceil(y+h)))
+	needW := max(p.windowWidth, int64(math.Ceil(x+w)))
+	needH := max(p.windowHeight, int64(math.Ceil(y+h)))
 	if err := emulation.SetDeviceMetricsOverride(
-		clampDim(needW), clampDim(needH), deviceScaleFactor, false,
+		clampDim(needW, p.scaleFactor), clampDim(needH, p.scaleFactor), p.scaleFactor, false,
 	).Do(ctx); err != nil {
 		return nil, err
 	}
@@ -625,7 +664,7 @@ func getElementRect(ctx context.Context, selector string) (x, y, w, h float64, e
 
 // addAddressBar renders a browser-style address bar with favicon and URL using
 // chromedp, then stitches it on top of the page screenshot.
-func addAddressBar(ctx context.Context, pageURL string, pageBuf []byte) ([]byte, error) {
+func addAddressBar(ctx context.Context, pageURL string, pageBuf []byte, scaleFactor float64) ([]byte, error) {
 	// Get favicon as a data URI from current page (still on the target page).
 	// Collects all favicon candidates from the page, tries data: URIs first
 	// (no fetch needed), then attempts each URL-based candidate with fetch,
@@ -722,7 +761,7 @@ func addAddressBar(ctx context.Context, pageURL string, pageBuf []byte) ([]byte,
 	pageW := pageImg.Bounds().Dx()
 
 	// Calculate CSS width to match the page screenshot pixel width
-	cssW := int64(math.Round(float64(pageW) / deviceScaleFactor))
+	cssW := int64(math.Round(float64(pageW) / scaleFactor))
 	const barCSSH int64 = 52
 
 	// Build address bar HTML and capture it in the same tab
@@ -731,7 +770,7 @@ func addAddressBar(ctx context.Context, pageURL string, pageBuf []byte) ([]byte,
 
 	var barBuf []byte
 	if err := chromedp.Run(ctx,
-		emulation.SetDeviceMetricsOverride(cssW, barCSSH, deviceScaleFactor, false),
+		emulation.SetDeviceMetricsOverride(cssW, barCSSH, scaleFactor, false),
 		chromedp.Navigate(dataURL),
 		chromedp.Sleep(500*time.Millisecond),
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -783,8 +822,8 @@ func buildAddressBarHTML(pageURL, faviconURL string) string {
 
 // clampDim clamps a CSS dimension to Chrome's max texture size to avoid tiling artifacts.
 // The GPU limit is in physical pixels, so we divide by deviceScaleFactor.
-func clampDim(v int64) int64 {
-	maxCSS := int64(math.Floor(float64(maxPhysicalDim) / deviceScaleFactor))
+func clampDim(v int64, scaleFactor float64) int64 {
+	maxCSS := int64(math.Floor(float64(maxPhysicalDim) / scaleFactor))
 	return min(v, maxCSS)
 }
 
@@ -928,4 +967,335 @@ func getOptionsUsage(currentValue bool) (string, string) {
 		return strings.Count(usages[i], Req) > strings.Count(usages[j], Req)
 	})
 	return strings.Join(usages, ""), requiredOptionExample
+}
+
+// =======================================
+// MCP Server
+// =======================================
+
+func runMCPServer() {
+	// --- 1. Profile cache setup ---
+	profileCacheDir := setupProfileCache()
+
+	// --- 2. Browser context ---
+	browserCtx, shutdownBrowser := newBrowserContext(profileCacheDir)
+	cleanup := func() {
+		shutdownBrowser()
+		cleanupProfileCache(profileCacheDir)
+	}
+	defer cleanup()
+
+	// Handle interrupt signals
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		cleanup()
+		os.Exit(0)
+	}()
+
+	// --- 3. Start browser ---
+	if err := chromedp.Run(browserCtx); err != nil {
+		log.Fatal(err)
+	}
+
+	sem := make(chan struct{}, *arguments.parallel)
+
+	// --- 4. Create MCP server ---
+	s := server.NewMCPServer(
+		"sesnap",
+		version,
+		server.WithToolCapabilities(false),
+	)
+
+	// --- 5. Register tools ---
+
+	// screenshot: capture URLs and return images directly (base64)
+	s.AddTool(
+		mcp.NewTool("screenshot",
+			mcp.WithDescription("Take screenshots of web pages and return images directly. Supports parallel multi-URL capture."),
+			mcp.WithArray("urls",
+				mcp.Description("URLs to capture"),
+				mcp.WithStringItems(),
+				mcp.Required(),
+				mcp.MinItems(1),
+			),
+			mcp.WithNumber("width", mcp.Description("Viewport width in CSS pixels (default: 1280)")),
+			mcp.WithNumber("height", mcp.Description("Viewport height in CSS pixels (default: 860)")),
+			mcp.WithBoolean("full", mcp.Description("Enable full-page screenshot (default: false)")),
+			mcp.WithString("query", mcp.Description("CSS selector to screenshot a specific element")),
+			mcp.WithNumber("wait", mcp.Description("Wait seconds after navigation before capture (default: 3)")),
+			mcp.WithString("click", mcp.Description("Click the first element matching this CSS selector before capture")),
+			mcp.WithString("hover", mcp.Description("Hover over the first element matching this CSS selector before capture")),
+			mcp.WithString("expand_select", mcp.Description("Expand <select> elements as HTML overlay. Use CSS selector or \"*\" for all")),
+			mcp.WithBoolean("address_bar", mcp.Description("Add browser-style address bar to screenshot (default: false)")),
+			mcp.WithString("format", mcp.Description("Image format: \"png\" or \"jpeg\" (default: \"png\")")),
+			mcp.WithNumber("quality", mcp.Description("JPEG quality 1-100 (default: 80, only used with format=jpeg)")),
+			mcp.WithNumber("scale", mcp.Description("Device scale factor (default: 1.0)")),
+		),
+		mcpScreenshotHandler(browserCtx, sem, false),
+	)
+
+	// screenshot_to_file: capture URLs and save to files (no image tokens)
+	s.AddTool(
+		mcp.NewTool("screenshot_to_file",
+			mcp.WithDescription("Take screenshots of web pages and save to files. Returns file paths instead of images."),
+			mcp.WithArray("urls",
+				mcp.Description("URLs to capture"),
+				mcp.WithStringItems(),
+				mcp.Required(),
+				mcp.MinItems(1),
+			),
+			mcp.WithString("output", mcp.Description("Output file path (auto-numbered for multiple URLs: <base>_001.png, _002.png, ...)"), mcp.Required()),
+			mcp.WithNumber("width", mcp.Description("Viewport width in CSS pixels (default: 1280)")),
+			mcp.WithNumber("height", mcp.Description("Viewport height in CSS pixels (default: 860)")),
+			mcp.WithBoolean("full", mcp.Description("Enable full-page screenshot (default: false)")),
+			mcp.WithString("query", mcp.Description("CSS selector to screenshot a specific element")),
+			mcp.WithNumber("wait", mcp.Description("Wait seconds after navigation before capture (default: 3)")),
+			mcp.WithString("click", mcp.Description("Click the first element matching this CSS selector before capture")),
+			mcp.WithString("hover", mcp.Description("Hover over the first element matching this CSS selector before capture")),
+			mcp.WithString("expand_select", mcp.Description("Expand <select> elements as HTML overlay. Use CSS selector or \"*\" for all")),
+			mcp.WithBoolean("address_bar", mcp.Description("Add browser-style address bar to screenshot (default: false)")),
+			mcp.WithString("format", mcp.Description("Image format: \"png\" or \"jpeg\" (default: \"png\")")),
+			mcp.WithNumber("quality", mcp.Description("JPEG quality 1-100 (default: 80, only used with format=jpeg)")),
+			mcp.WithNumber("scale", mcp.Description("Device scale factor (default: 1.0)")),
+		),
+		mcpScreenshotHandler(browserCtx, sem, true),
+	)
+
+	// list_profiles: list available Chrome profile directories
+	s.AddTool(
+		mcp.NewTool("list_profiles",
+			mcp.WithDescription("List available Chrome profile directories for use with the -p flag"),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			profiles := listChromeProfiles()
+			if len(profiles) == 0 {
+				return mcp.NewToolResultText("No Chrome profiles found."), nil
+			}
+			var sb strings.Builder
+			for _, p := range profiles {
+				sb.WriteString(fmt.Sprintf("- %s: %s\n", p.name, p.path))
+			}
+			return mcp.NewToolResultText(sb.String()), nil
+		},
+	)
+
+	// --- 6. Start stdio server ---
+	if err := server.NewStdioServer(s).Listen(context.Background(), os.Stdin, os.Stdout); err != nil {
+		log.Fatalf("MCP server error: %v", err)
+	}
+}
+
+// mcpCaptureParams builds captureParams from MCP tool request arguments.
+func mcpCaptureParams(request mcp.CallToolRequest) captureParams {
+	return captureParams{
+		windowWidth:    int64(request.GetFloat("width", 1280)),
+		windowHeight:   int64(request.GetFloat("height", 860)),
+		waitSeconds:    int(request.GetFloat("wait", 3)),
+		querySelector:  request.GetString("query", ""),
+		clickSelector:  request.GetString("click", ""),
+		hoverSelector:  request.GetString("hover", ""),
+		expandSelect:   request.GetString("expand_select", ""),
+		fullScreenshot: request.GetBool("full", false),
+		showAddressBar: request.GetBool("address_bar", false),
+		scaleFactor:    request.GetFloat("scale", 1.0),
+	}
+}
+
+// mcpScreenshotHandler returns a tool handler that captures screenshots.
+// If toFile is true, screenshots are saved to disk; otherwise returned as base64 images.
+func mcpScreenshotHandler(browserCtx context.Context, sem chan struct{}, toFile bool) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		reqURLs, err := request.RequireStringSlice("urls")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		p := mcpCaptureParams(request)
+		format := request.GetString("format", "png")
+		quality := int(request.GetFloat("quality", 80))
+
+		var outputBase string
+		if toFile {
+			outputBase, err = request.RequireString("output")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+		}
+
+		type captureResult struct {
+			index int
+			buf   []byte
+			err   error
+		}
+		results := make(chan captureResult, len(reqURLs))
+
+		for i, u := range reqURLs {
+			go func(i int, u string) {
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				var tabCtx context.Context
+				var tabCancel context.CancelFunc
+				if len(reqURLs) == 1 {
+					tabCtx = browserCtx
+					tabCancel = func() {}
+				} else {
+					tabCtx, tabCancel = chromedp.NewContext(browserCtx)
+				}
+				defer tabCancel()
+
+				buf, captureErr := takeScreenshot(tabCtx, u, p)
+				results <- captureResult{i, buf, captureErr}
+			}(i, u)
+		}
+
+		// Collect results in order
+		ordered := make([]captureResult, len(reqURLs))
+		for range reqURLs {
+			r := <-results
+			ordered[r.index] = r
+		}
+
+		// Build response
+		var content []mcp.Content
+		for i, r := range ordered {
+			if r.err != nil {
+				content = append(content, mcp.TextContent{
+					Type: "text",
+					Text: fmt.Sprintf("[%d] %s: error: %v", i+1, reqURLs[i], r.err),
+				})
+				continue
+			}
+
+			imgBuf := r.buf
+			mimeType := "image/png"
+			if format == "jpeg" {
+				mimeType = "image/jpeg"
+				imgBuf, err = convertToJPEG(r.buf, quality)
+				if err != nil {
+					content = append(content, mcp.TextContent{
+						Type: "text",
+						Text: fmt.Sprintf("[%d] %s: JPEG conversion error: %v", i+1, reqURLs[i], err),
+					})
+					continue
+				}
+			}
+
+			if toFile {
+				outPath := mcpOutputPath(outputBase, i, len(reqURLs), format)
+				if dir := filepath.Dir(outPath); dir != "." {
+					if err := os.MkdirAll(dir, 0755); err != nil {
+						content = append(content, mcp.TextContent{
+							Type: "text",
+							Text: fmt.Sprintf("[%d] %s: mkdir error: %v", i+1, reqURLs[i], err),
+						})
+						continue
+					}
+				}
+				if err := os.WriteFile(outPath, imgBuf, 0644); err != nil {
+					content = append(content, mcp.TextContent{
+						Type: "text",
+						Text: fmt.Sprintf("[%d] %s: write error: %v", i+1, reqURLs[i], err),
+					})
+					continue
+				}
+				content = append(content, mcp.TextContent{
+					Type: "text",
+					Text: fmt.Sprintf("[%d] %s -> %s", i+1, reqURLs[i], outPath),
+				})
+			} else {
+				encoded := base64.StdEncoding.EncodeToString(imgBuf)
+				content = append(content, mcp.TextContent{
+					Type: "text",
+					Text: fmt.Sprintf("[%d] %s", i+1, reqURLs[i]),
+				})
+				content = append(content, mcp.ImageContent{
+					Type:     "image",
+					Data:     encoded,
+					MIMEType: mimeType,
+				})
+			}
+		}
+
+		return &mcp.CallToolResult{Content: content}, nil
+	}
+}
+
+// mcpOutputPath returns the output file path for the i-th URL in MCP mode.
+func mcpOutputPath(base string, index, total int, format string) string {
+	ext := "." + format
+	dir := filepath.Dir(base)
+	name := filepath.Base(base)
+	nameNoExt := strings.TrimSuffix(name, filepath.Ext(name))
+
+	if total == 1 {
+		// Ensure correct extension
+		return filepath.Join(dir, nameNoExt+ext)
+	}
+	return filepath.Join(dir, fmt.Sprintf("%s_%03d%s", nameNoExt, index+1, ext))
+}
+
+// convertToJPEG converts PNG image bytes to JPEG with the given quality.
+func convertToJPEG(pngBuf []byte, quality int) ([]byte, error) {
+	img, err := png.Decode(bytes.NewReader(pngBuf))
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality}); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+type chromeProfile struct {
+	name string
+	path string
+}
+
+// listChromeProfiles lists available Chrome profile directories.
+func listChromeProfiles() []chromeProfile {
+	dataDir := chromeUserDataDir()
+	if dataDir == "" {
+		return nil
+	}
+	entries, err := os.ReadDir(dataDir)
+	if err != nil {
+		return nil
+	}
+	var profiles []chromeProfile
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		prefPath := filepath.Join(dataDir, entry.Name(), "Preferences")
+		if _, err := os.Stat(prefPath); err != nil {
+			continue
+		}
+		profiles = append(profiles, chromeProfile{
+			name: entry.Name(),
+			path: filepath.Join(dataDir, entry.Name()),
+		})
+	}
+	return profiles
+}
+
+// chromeUserDataDir returns the default Chrome user data directory for the current OS.
+func chromeUserDataDir() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(homeDir, "Library", "Application Support", "Google", "Chrome")
+	case "linux":
+		return filepath.Join(homeDir, ".config", "google-chrome")
+	case "windows":
+		return filepath.Join(homeDir, "AppData", "Local", "Google", "Chrome", "User Data")
+	default:
+		return ""
+	}
 }
